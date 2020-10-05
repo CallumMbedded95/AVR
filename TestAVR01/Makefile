@@ -5,7 +5,7 @@ DEVICE      = attiny85
 CLOCK      = 1000000
 #PROGRAMMER = -c usbtiny 
 PROGRAMMER = -c avrisp
-OBJECTS    = main.o
+OBJECTS    = main.o USI.o
 PORT = /dev/ttyUSB0
 BAUD = 19200
 # for ATTiny85
@@ -60,4 +60,4 @@ disasm:	main.elf
 	avr-objdump -d main.elf
 
 cpp:
-	$(COMPILE) -E main.c
+	$(COMPILE) -E main.c USI.c
