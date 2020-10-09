@@ -55,8 +55,8 @@ void transmitBytes(unsigned char data) {
 	while(Tx_Buf_Ind == Tx_Tail); // We must wait for room in buffer
 
 	Tx_Head = Tx_Buf_Ind; // Set new head
-	//Tx_Buffer[Tx_Head] = Bit_Reverse(data);
-	Tx_Buffer[Tx_Head] = data;
+	Tx_Buffer[Tx_Head] = Bit_Reverse(data);
+	//Tx_Buffer[Tx_Head] = data;
 	//Tx_Static = Bit_Reverse(data); //Tx data --OLD REFERENCE
 
 	setInternal_Tx();
@@ -73,7 +73,7 @@ void setInternal_Tx() {
 
 	// Delete after *************
 	//USIDR = 0x00|(Tx_Static >> 1); // 0 start bit apparently
-	USIDR = 0x00;
+	//USIDR = 0x00;
 	// Delete after *************
 
 
@@ -88,7 +88,10 @@ DDRB  |= (1<<3);
 
 ISR(USI_OVF_vect) {
 	if (test == First) {
-		USIDR = 0x00|(Tx_Buffer[Tx_Head]>>1);
+		unsigned char tmptail = (Tx_Tail+1) & TX_BUFFER_MASK;
+		USIDR = 0x00|(Tx_Buffer[tmptail]>>1);
+		Tx_Tail = tmptail;
+
 		test = Second;
 		//USIDR = (Tx_Static<<7)|(0x7F); //High edge and start bit (start = low edge)
 		USISR = 1<<USIOIF | (16 - USI_REG_FRAME_SIZE);     //Clear USI int flag from status reg AND set ctr to 8 - so we can count to 8
@@ -105,7 +108,7 @@ ISR(USI_OVF_vect) {
 
 
 	} else if (test == Third) {
-		PORTB |= (1<<3);
+		//PORTB |= (1<<3);
 		USICR = 0x00; // Turn off USI
 		USISR = 1<<USIOIF; // Clear interrupt flag
 
