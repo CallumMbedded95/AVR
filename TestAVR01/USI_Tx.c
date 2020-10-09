@@ -19,7 +19,7 @@ volatile static unsigned char Tx_Tail;	// Circular buffer tail
 volatile static unsigned char Tx_Static = 0b01101000; // Letter a char
 
 //termporary section
-enum Tx_State {First, Second};
+enum Tx_State {First, Second, Third};
 volatile static enum Tx_State test = First;
 //
 
@@ -73,7 +73,7 @@ void setInternal_Tx() {
 
 	// Delete after *************
 	//USIDR = 0x00|(Tx_Static >> 1); // 0 start bit apparently
-	USIDR = 0x00|(Tx_Buffer[Tx_Head]>>1);
+	//USIDR = 0xFF;
 	// Delete after *************
 
 
@@ -82,24 +82,33 @@ void setInternal_Tx() {
 			(0<<USICS1) | (1<<USICS0) | (0<<USICLK);	// Set to timer/counter0 compare match/Clock source
 
 	DDRB  |= (1<<PB1);
-
-	USISR = 1<<USIOIF | (16 - USI_REG_FRAME_SIZE);     //Clear USI int flag from status reg AND set ctr to 8 - so we can count to 8
+DDRB  |= (1<<3);
+	
 }
 
 ISR(USI_OVF_vect) {
 	if (test == First) {
+		USIDR = 0x00|(Tx_Buffer[Tx_Head]>>1);
 		test = Second;
 		//USIDR = (Tx_Static<<7)|(0x7F); //High edge and start bit (start = low edge)
+		USISR = 1<<USIOIF | (16 - USI_REG_FRAME_SIZE);     //Clear USI int flag from status reg AND set ctr to 8 - so we can count to 8
+		
+	} else if (test == Second) {
+		test = Third;
+
 		unsigned char tmptail = (Tx_Tail+1) & TX_BUFFER_MASK;
 		USIDR = (Tx_Buffer[tmptail]<<7)|(0x7F);
 		Tx_Tail = tmptail;
 
 		USISR = (1<<USIOIF)| // Clear interrupt flag on usi status reg
 				(16 - STOP_BITS - 1); // Set counter to 16 - stop bits and - last USIDR bit
-	} else if (test == Second) {
-		test = First;
 
-		USICR = 0x00; // Turn off USI
+
+	} else if (test == Third) {
+		PORTB |= (1<<3);
+				USICR = 0x00; // Turn off USI
 		USISR = 1<<USIOIF; // Clear interrupt flag
+
+		test = First;
 	}
 }
