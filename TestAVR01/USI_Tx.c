@@ -37,6 +37,7 @@ void initialiseTx() {
 }
 
 void transmitBytes(unsigned char data) {
+	while (test != First);
 	cli();
 	Tx_Static = Bit_Reverse(data); //Tx data
 
@@ -68,23 +69,19 @@ USIDR = 0xff;USISR = 0xff;
 ISR(USI_OVF_vect) {
 	if (test == First) {
 		USIDR = 0x80|(Tx_Static >> 2); // 0 start bit apparently
-		USISR = 1<<USIOIF | (16 - 5);     //Clear USI int flag from status reg AND set ctr to 8 - so we can count to 8
+		USISR = 1<<USIOIF | (16 - 8);     //Clear USI int flag from status reg AND set ctr to 8 - so we can count to 8
 
 		test = Second;
 	} else if (test == Second) {
-		USIDR = (Tx_Static<<3)|(0x07); //High edge and start bit (start = low edge)
-
+		USIDR = (Tx_Static<<6)|(0x3F); //High edge and start bit (start = low edge)
 		USISR = (1<<USIOIF)| // Clear interrupt flag on usi status reg
-				(16 - 5); // Set counter to 16 - stop bits and - last USIDR bit
-	
+				(16 - 3); // Set counter to 16 - stop bits and - last USIDR bit
+		PORTB |= 1<<PB3;
 ///
 		test = Third;
 	} else if (test == Third) {
 		USICR = 0x00; // Turn off USI
 		USISR = 1<<USIOIF; // Clear interrupt flag
-		PORTB |= (1<<PB3);
-		_delay_ms(500);
-		PORTB ^= (1<<PB3);
 		test = First;
 	}
 }

@@ -10,7 +10,7 @@ int main (void)
 	initialiseTx();
 
  	while (1) {
- 		transmitBytes('h');
+ 		transmitBytes('m');
 
  		_delay_ms(500);
   	}	
