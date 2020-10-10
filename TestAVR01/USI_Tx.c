@@ -15,7 +15,7 @@
 volatile static unsigned char Tx_Static = 0b01101000; // Letter a char
 
 //termporary section
-enum Tx_State {First, Second};
+enum Tx_State {First, Second, Third};
 volatile static enum Tx_State test = First;
 //
 
@@ -30,13 +30,14 @@ unsigned char Bit_Reverse( unsigned char x ) {
 }
 
 void initialiseTx() {
-	sei(); // set global interrupts - not sure if required
+	//sei(); // set global interrupts - not sure if required
 	USICR = 0; //usi disabled - likely not necessary
 	PORTB = (1<<PB1); // DO/Tx Pin
 	DDRB |= (1<<PB1); // USI Output pin
 }
 
 void transmitBytes(unsigned char data) {
+	cli();
 	Tx_Static = Bit_Reverse(data); //Tx data
 
 	TCCR0A = (1<<WGM01)|(0<<WGM00); // Set CTC mode (Compare to OCRA and clear)
@@ -47,7 +48,7 @@ void transmitBytes(unsigned char data) {
 	OCR0A = CYCLES_PER_BIT; // Used as CTC compare against TCNT0 - triggers USI Overflow
 
 	// Delete after *************
-	USIDR = 0x00|(Tx_Static >> 1); // 0 start bit apparently
+
 	// Delete after *************
 
 
@@ -55,22 +56,35 @@ void transmitBytes(unsigned char data) {
 			(0<<USIWM1) | (1<<USIWM0) |					// Three wire mode set
 			(0<<USICS1) | (1<<USICS0) | (0<<USICLK);	// Set to timer/counter0 compare match/Clock source
 
-	DDRB  |= (1<<PB1);
+USIDR = 0xff;USISR = 0xff;
 
-	USISR = 1<<USIOIF | (16 - USI_REG_CTR_SIZE);     //Clear USI int flag from status reg AND set ctr to 8 - so we can count to 8
+	DDRB |= (1<<PB1);
+	DDRB |= (1<<PB3);
+	
+	
+	sei();
 }
 
 ISR(USI_OVF_vect) {
 	if (test == First) {
+		USIDR = 0x80|(Tx_Static >> 2); // 0 start bit apparently
+		USISR = 1<<USIOIF | (16 - 5);     //Clear USI int flag from status reg AND set ctr to 8 - so we can count to 8
+
 		test = Second;
-		USIDR = (Tx_Static<<7)|(0x7F); //High edge and start bit (start = low edge)
+	} else if (test == Second) {
+		USIDR = (Tx_Static<<3)|(0x07); //High edge and start bit (start = low edge)
 
 		USISR = (1<<USIOIF)| // Clear interrupt flag on usi status reg
-				(16 - STOP_BITS - 1); // Set counter to 16 - stop bits and - last USIDR bit
-	} else if (test == Second) {
-		test = First;
-
+				(16 - 5); // Set counter to 16 - stop bits and - last USIDR bit
+	
+///
+		test = Third;
+	} else if (test == Third) {
 		USICR = 0x00; // Turn off USI
 		USISR = 1<<USIOIF; // Clear interrupt flag
+		PORTB |= (1<<PB3);
+		_delay_ms(500);
+		PORTB ^= (1<<PB3);
+		test = First;
 	}
 }
