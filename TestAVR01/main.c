@@ -13,6 +13,10 @@ int main (void)
  		transmitBytes('h');
 
  		_delay_ms(500);
+
+ 		transmitBytes('a');
+
+ 		_delay_ms(500);
   	}	
  
   	return 0;

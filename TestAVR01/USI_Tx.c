@@ -9,7 +9,9 @@
 #include <stdint-gcc.h>
 
 // UART Parameters
-#define USI_REG_CTR_SIZE		8
+#define USI_USISR_CTR_LEN 		16
+#define USI_FIRST_FRAME_LEN		7
+#define USI_TOTAL_FRAME_LEN		10
 #define CYCLES_PER_BIT     	( F_CPU / BAUD ) // defined in makefile
 
 volatile static unsigned char Tx_Static = 0b01101000; // Letter a char
@@ -47,44 +49,36 @@ void transmitBytes(unsigned char data) {
 
 	OCR0A = CYCLES_PER_BIT; // Used as CTC compare against TCNT0 - triggers USI Overflow
 
-	// Delete after *************
-
-	// Delete after *************
-
-
 	USICR = (1<<USIOIE) |								// Counter overflow interrupt flag
 			(0<<USIWM1) | (1<<USIWM0) |					// Three wire mode set
 			(0<<USICS1) | (1<<USICS0) | (0<<USICLK);	// Set to timer/counter0 compare match/Clock source
 
-USIDR = 0xff;USISR = 0xff;
+	USIDR = 0xFF; // Low value will trigger sends, fill with high edge
+	USISR = 0xFF; // Clear all interrupts and set interrupt counter to 16
 
-	DDRB |= (1<<PB1);
-	DDRB |= (1<<PB3);
+	DDRB |= (1<<PB1);	
 	
-	
-	sei();
+	sei(); // Set global interrupts
 }
 
 ISR(USI_OVF_vect) {
 	if (test == First) {
-		USIDR = 0x80|(Tx_Static >> 2); // 0 start bit apparently
-		USISR = 1<<USIOIF | (16 - 5);     //Clear USI int flag from status reg AND set ctr to 8 - so we can count to 8
+		USIDR = 0x80|(Tx_Static >> 2); // 0 start bit 
+		USISR = 1<<USIOIF | // Clear USI interrupt flag
+					(USI_USISR_CTR_LEN - USI_FIRST_FRAME_LEN);     //Clear USI int flag from status reg AND set ctr to 8 - so we can count to 8
 
 		test = Second;
 	} else if (test == Second) {
-		USIDR = (Tx_Static<<3)|(0x07); //High edge and start bit (start = low edge)
+		USIDR = (Tx_Static<<5)|(0x1F); // If I set Tx_static to shift 6 (optimal frame size) it dies wtf? Use << 5
 
 		USISR = (1<<USIOIF)| // Clear interrupt flag on usi status reg
-				(16 - 5); // Set counter to 16 - stop bits and - last USIDR bit
-	
-///
+					(USI_USISR_CTR_LEN - (USI_TOTAL_FRAME_LEN - USI_FIRST_FRAME_LEN)); // Set counter to 16 - stop bits and - last USIDR bit
+
 		test = Third;
 	} else if (test == Third) {
 		USICR = 0x00; // Turn off USI
 		USISR = 1<<USIOIF; // Clear interrupt flag
-		PORTB |= (1<<PB3);
-		_delay_ms(500);
-		PORTB ^= (1<<PB3);
+
 		test = First;
 	}
 }
