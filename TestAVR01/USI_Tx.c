@@ -11,6 +11,8 @@
 // UART Parameters
 #define USI_REG_FRAME_SIZE		8
 #define CYCLES_PER_BIT     	( F_CPU / BAUD ) // defined in makefile
+#define TRUE					1
+#define FALSE 					0
 
 volatile static unsigned char Tx_Buffer[TX_BUFFER_LEN]; // Buffer for Tx data
 volatile static unsigned char Tx_Head;	// Circular buffer head
@@ -19,13 +21,15 @@ volatile static unsigned char Tx_Tail;	// Circular buffer tail
 volatile static unsigned char Tx_Static = 0b01101000; // Letter a char
 
 //termporary section
-enum Tx_State {First, Second, Third};
+enum Tx_State {First, Second};
 volatile static enum Tx_State test = First;
 //
 
-// volatile static union struct {
-
-// }
+struct UART_Status_Struct {
+	unsigned char Tx_Active:1;
+	unsigned char Tx_Transferring:1;
+	unsigned char Tx_Idle:1;
+} volatile static UART_Status;
 
 // Reverses the order of bits in a byte.
 // I.e. MSB is swapped with LSB, etc.
@@ -47,6 +51,8 @@ void initialiseTx() {
 	USICR = 0; //usi disabled - likely not necessary
 	PORTB = (1<<PB1); // DO/Tx Pin
 	DDRB |= (1<<PB1); // USI Output pin
+
+	UART_Status.Tx_Idle = TRUE;
 }
 
 // Sets up the buffer with data to transmit
@@ -60,6 +66,9 @@ void transmitBytes(unsigned char data) {
 	//Tx_Static = Bit_Reverse(data); //Tx data --OLD REFERENCE
 
 	setInternal_Tx();
+
+	while (!UART_Status.Tx_Idle);
+	UART_Status.Tx_Active = TRUE;
 }
 
 // Called by transmit bytes to set Timer/Count0 and USI status and data registers
@@ -73,7 +82,7 @@ void setInternal_Tx() {
 
 	// Delete after *************
 	//USIDR = 0x00|(Tx_Static >> 1); // 0 start bit apparently
-	//USIDR = 0xFF;
+	USIDR = 0xFF; //start bit is low- keep high????
 	// Delete after *************
 
 
@@ -82,33 +91,42 @@ void setInternal_Tx() {
 			(0<<USICS1) | (1<<USICS0) | (0<<USICLK);	// Set to timer/counter0 compare match/Clock source
 
 	DDRB  |= (1<<PB1);
-DDRB  |= (1<<3);
-	
+	DDRB  |= (1<<3);
+	USISR = 1<<USIOIF | (16 - USI_REG_FRAME_SIZE);     //Clear USI int flag from status reg AND set ctr to 8 - so we can count to 8
 }
 
 ISR(USI_OVF_vect) {
-	if (test == First) {
-		USIDR = 0x00|(Tx_Buffer[Tx_Head]>>1);
-		test = Second;
-		//USIDR = (Tx_Static<<7)|(0x7F); //High edge and start bit (start = low edge)
-		USISR = 1<<USIOIF | (16 - USI_REG_FRAME_SIZE);     //Clear USI int flag from status reg AND set ctr to 8 - so we can count to 8
-		
-	} else if (test == Second) {
-		test = Third;
-
-		unsigned char tmptail = (Tx_Tail+1) & TX_BUFFER_MASK;
-		USIDR = (Tx_Buffer[tmptail]<<7)|(0x7F);
+	if (UART_Status.Tx_Active ) {
+		unsigned char tmptail = (Tx_Tail + 1) & TX_BUFFER_MASK;
+		USIDR = 0x00|(Tx_Buffer[tmptail] >> 1);
 		Tx_Tail = tmptail;
+		UART_Status.Tx_Active = FALSE;
+		UART_Status.Tx_Transferring = TRUE;
+
+	} else if (UART_Status.Tx_Transferring) {
+		
+		USIDR = (Tx_Buffer[Tx_Tail] << 7)|(0x7F);
 
 		USISR = (1<<USIOIF)| // Clear interrupt flag on usi status reg
 				(16 - STOP_BITS - 1); // Set counter to 16 - stop bits and - last USIDR bit
 
-
-	} else if (test == Third) {
+		UART_Status.Tx_Active = FALSE;
+		UART_Status.Tx_Idle = TRUE;
+	} else if (UART_Status.Tx_Idle) {
 		PORTB |= (1<<3);
-				USICR = 0x00; // Turn off USI
-		USISR = 1<<USIOIF; // Clear interrupt flag
-
-		test = First;
+		USICR = 0x00; // Turn off USI
+		USISR = 1<<USIOIF; // Clear interrupt flag			
 	}
+	// if (test == First) {
+	// 	test = Second;
+	// 	//USIDR = (Tx_Static<<7)|(0x7F); //High edge and start bit (start = low edge)
+	// 	USIDR = (Tx_Buffer[Tx_Tail] << 7)|(0x7F);
+
+	// 	USISR = (1<<USIOIF)| // Clear interrupt flag on usi status reg
+	// 			(16 - STOP_BITS - 1); // Set counter to 16 - stop bits and - last USIDR bit
+	// } else if (test == Second) {
+	// 	test = First;
+
+
+	// }
 }
