@@ -8,29 +8,29 @@
 int main (void)
 {
 	flushBuffers();
-	initialiseTx();
-
+	//initialiseTx();
+	initialiseRx();
+	
  	while (1) {
- 		transmitBytes('h');
+ 		// transmitBytes('h');
 
- 		_delay_ms(500);
+ 		// _delay_ms(500);
 
- 		transmitBytes('e');
+ 		// transmitBytes('e');
 
- 		_delay_ms(500);
+ 		// _delay_ms(500);
 
- 		transmitBytes('c');
+ 		// transmitBytes('c');
 
- 		_delay_ms(500);
+ 		// _delay_ms(500);
 
- 		transmitBytes('k');
+ 		// transmitBytes('k');
 
- 		_delay_ms(500);
+ 		// _delay_ms(500);
 
- 		transmitBytes('o');
+ 		// transmitBytes('o');
 
-
- 		_delay_ms(500);
+ 		// _delay_ms(500);
   	}	
  
   	return 0;

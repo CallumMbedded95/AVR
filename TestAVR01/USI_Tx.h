@@ -8,6 +8,7 @@
 
 unsigned char Bit_Reverse(unsigned char x);
 void initialiseTx();
+void initialiseRx();
 void transmitBytes(unsigned char byte);
 void setInternal_Tx();
 void flushBuffers();
