@@ -7,6 +7,7 @@
  
 int main (void)
 {
+	flushBuffers();
 	initialiseTx();
 
  	while (1) {
@@ -14,7 +15,20 @@ int main (void)
 
  		_delay_ms(500);
 
- 		transmitBytes('a');
+ 		transmitBytes('e');
+
+ 		_delay_ms(500);
+
+ 		transmitBytes('c');
+
+ 		_delay_ms(500);
+
+ 		transmitBytes('k');
+
+ 		_delay_ms(500);
+
+ 		transmitBytes('o');
+
 
  		_delay_ms(500);
   	}	
