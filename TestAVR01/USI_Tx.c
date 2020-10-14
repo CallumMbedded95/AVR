@@ -65,9 +65,9 @@ void initialiseRx() {
 }
 
 // Interrupt vector for DI USI pin
-ISR(USI_START_vect) {
-	PORTB |= (1<<PB3);
-}
+// ISR(USI_START_vect) {
+// 	PORTB |= (1<<PB3);
+// }
 
 
 // Initialises Tx PB1 pin for transfer of data
@@ -75,7 +75,7 @@ void initialiseTx() {
 	//sei(); // set global interrupts - not sure if required
 	USICR = 0; //usi disabled - likely not necessary
 	PORTB = (1<<PB1); // DO/Tx Pin
-	DDRB |= (0<<PB1); // USI Input pin
+	DDRB |= (1<<PB1); // USI Input pin
 
 	UART_Status.Tx_Idle = TRUE;
 }
@@ -105,6 +105,9 @@ void setInternal_Tx() {
 
 	OCR0A = CYCLES_PER_BIT; // Used as CTC compare against TCNT0 - triggers USI Overflow
 
+	USICR = (1<<USIOIE) |								// Counter overflow interrupt flag
+			(0<<USIWM1) | (1<<USIWM0) |					// Three wire mode set
+			(0<<USICS1) | (1<<USICS0) | (0<<USICLK);	// Set to timer/counter0 compare match/Clock source
 	USIDR = 0xFF; //start bit is low- keep high
 
 	DDRB  |= (1<<PB1);
