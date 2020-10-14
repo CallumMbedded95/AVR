@@ -40,12 +40,40 @@ void flushBuffers() {
 	Tx_Tail = 0x00;
 }
 
-// Initialises Tx PB1 pin for transfer of data and enables global interrupts
+// Initialises Rx PB1 for receiving of data 
+void initialiseRx() {
+	cli();
+	PORTB = (0<<PB0); // make sure PB1 is input
+	DDRB |= (0<<PB0);
+
+	TCNT0 = 0; //set timer cntr to 0
+	TCCR0A = (1<<WGM01)|(0<<WGM00);
+	TCCR0B = (0<<WGM02)|(1<<CS00);
+
+	OCR0A = CYCLES_PER_BIT;
+
+	USISR = (1<<USISIF)|0xFF; // clear interrupt flag
+	USICR = (1<<USISIE)|(1<<USIOIE)| // start and counter cond interrupt enable
+			(0<<USIWM1)|(1<<USIWM0)| // wire mode 3 wire
+			(0<<USICS1)|(1<<USICS0)|(0<<USICLK); // counter/timer compare match CTC mode
+
+	DDRB |= (1<<PB3); // test led to see if receive triggers
+
+	sei();
+}
+
+// Interrupt vector for DI USI pin
+ISR(USI_START_vect) {
+	PORTB |= (1<<PB3);
+}
+
+
+// Initialises Tx PB1 pin for transfer of data
 void initialiseTx() {
 	//sei(); // set global interrupts - not sure if required
 	USICR = 0; //usi disabled - likely not necessary
 	PORTB = (1<<PB1); // DO/Tx Pin
-	DDRB |= (1<<PB1); // USI Output pin
+	DDRB |= (0<<PB1); // USI Input pin
 
 	UART_Status.Tx_Idle = TRUE;
 }
