@@ -16,9 +16,11 @@
 #define TRUE					1
 #define FALSE 					0
 
+
 volatile static unsigned char Tx_Buffer[TX_BUFFER_LEN]; // Buffer for Tx data
 volatile static unsigned char Tx_Head;	// Circular buffer head
 volatile static unsigned char Tx_Tail;	// Circular buffer tail
+
 
 struct UART_Status_Struct {
 	unsigned char Tx_Active:1;
@@ -55,6 +57,7 @@ void transmitBytes(unsigned char data) {
 	unsigned char Tx_Buf_Ind = (Tx_Head+1) & TX_BUFFER_MASK; // Will account for overflow
 	while(Tx_Buf_Ind == Tx_Tail); // We must wait for room in buffer
 
+
 	Tx_Head = Tx_Buf_Ind; // Set new head
 	Tx_Buffer[Tx_Head] = Bit_Reverse(data);
 
@@ -75,10 +78,6 @@ void setInternal_Tx() {
 	OCR0A = CYCLES_PER_BIT; // Used as CTC compare against TCNT0 - triggers USI Overflow
 
 	USIDR = 0xFF; //start bit is low- keep high
-
-	USICR = (1<<USIOIE) |								// Counter overflow interrupt flag
-			(0<<USIWM1) | (1<<USIWM0) |					// Three wire mode set
-			(0<<USICS1) | (1<<USICS0) | (0<<USICLK);	// Set to timer/counter0 compare match/Clock source
 
 	DDRB  |= (1<<PB1);
 	DDRB  |= (1<<3);

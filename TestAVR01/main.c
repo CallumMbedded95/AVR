@@ -29,6 +29,7 @@ int main (void)
 
  		transmitBytes('o');
 
+
  		_delay_ms(500);
   	}	
  
