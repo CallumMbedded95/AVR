@@ -46,20 +46,21 @@ void flushBuffers() {
 // Initialises Rx PB1 for receiving of data 
 void initialiseRx() {
 	cli();
-	PORTB |= (0<<PB0);
 	DDRB |= (0<<PB0); // PB1 set to input
+	PORTB |= (1<<PB0); // INPUT SET HIGH
 
 	GIMSK = (1<<PCIE); //PIN CHANGE GLOBAL INTERRUPT ENABLE (PCINT0_vect)
 	PCMSK = (1<<PCINT0); // Sets PinB0 to have interrupt vector enabled
 
-	TCNT0 = 0; //set timer cntr to 0
 	TCCR0A = (1<<WGM01)|(0<<WGM00);
 	TCCR0B = (0<<WGM02)|(1<<CS00);
 
+	TCNT0 = 0; //set timer cntr to 0
+
 	OCR0A = CYCLES_PER_BIT;
 
-	USISR = (1<<USISIF)|0xFF; // clear interrupt flag
-	USICR = (1<<USISIE)|(1<<USIOIE)| // start and counter cond interrupt enable
+	USISR = (1<<USIOIF)|0xFF; // start and clear interrupt flag AND counter to 16
+	USICR = (1<<USIOIE)| // dont use this part? (1<<USISIE)|// start and counter cond interrupt enable
 			(0<<USIWM1)|(1<<USIWM0)| // wire mode 3 wire
 			(0<<USICS1)|(1<<USICS0)|(0<<USICLK); // counter/timer compare match CTC mode
 
@@ -70,9 +71,15 @@ void initialiseRx() {
 
 // Interrupt vector for DI USI pin
 ISR(PCINT0_vect) {
-	//if ((PINB) & (1<<PB0)) { // And and if result is > 0 then true
+	unsigned char pinState = PINB;
+	if (!(pinState & (0<<PB0))) { // And and if result is > 0 then true
 		//PORTB |= (1<<PB3); // LED test for interrupt signal
-	//}
+	}
+	
+
+	GIMSK &= ~(1<<PCIE); //PIN CHANGE GLOBAL INTERRUPT DISABLED (So PCINT0_vect doesnt continuously trigger)
+	PCMSK &= ~(1<<PCINT0); // Sets PinB0 to have interrupt vector disabled like above ^
+
 	UART_Status.Rx_Receive = TRUE;
 }
 
@@ -118,7 +125,6 @@ void setInternal_Tx() {
 	USIDR = 0xFF; //start bit is low- keep high
 
 	DDRB  |= (1<<PB1);
-	DDRB  |= (1<<3);
 
 	USISR = 1<<USIOIF | 0xFF;     //Clear USI int flag from status reg AND set ctr to 8 - so we can count to 8
 
@@ -126,7 +132,6 @@ void setInternal_Tx() {
 }
 
 ISR(USI_OVF_vect) {
-	PORTB |= (1<<PB3);
 	if (UART_Status.Tx_Active ) {
 		unsigned char tmptail = (Tx_Tail + 1) & TX_BUFFER_MASK;
 		USIDR = 0x80|(Tx_Buffer[tmptail] >> 2);
@@ -150,6 +155,7 @@ ISR(USI_OVF_vect) {
 		USICR = 0x00; // Turn off USI
 		USISR = 1<<USIOIF; // Clear interrupt flag			
 	} else if (UART_Status.Rx_Receive) {
-
+		PORTB ^= (1<<PB3);
+		USISR = 1<<USIOIF|8; // Clear interrupt flag	
 	}
 }
