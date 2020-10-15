@@ -26,6 +26,7 @@ struct UART_Status_Struct {
 	unsigned char Tx_Active:1;
 	unsigned char Tx_Transferring:1;
 	unsigned char Tx_Idle:1;
+	unsigned char Rx_Receive:1;
 } volatile static UART_Status;
 
 // Reverses the order of bits in a byte.
@@ -45,8 +46,11 @@ void flushBuffers() {
 // Initialises Rx PB1 for receiving of data 
 void initialiseRx() {
 	cli();
-	PORTB = (0<<PB0); // make sure PB1 is input
-	DDRB |= (0<<PB0);
+	PORTB |= (0<<PB0);
+	DDRB |= (0<<PB0); // PB1 set to input
+
+	GIMSK = (1<<PCIE); //PIN CHANGE GLOBAL INTERRUPT ENABLE (PCINT0_vect)
+	PCMSK = (1<<PCINT0); // Sets PinB0 to have interrupt vector enabled
 
 	TCNT0 = 0; //set timer cntr to 0
 	TCCR0A = (1<<WGM01)|(0<<WGM00);
@@ -65,9 +69,12 @@ void initialiseRx() {
 }
 
 // Interrupt vector for DI USI pin
-// ISR(USI_START_vect) {
-// 	PORTB |= (1<<PB3);
-// }
+ISR(PCINT0_vect) {
+	//if ((PINB) & (1<<PB0)) { // And and if result is > 0 then true
+		//PORTB |= (1<<PB3); // LED test for interrupt signal
+	//}
+	UART_Status.Rx_Receive = TRUE;
+}
 
 
 // Initialises Tx PB1 pin for transfer of data
@@ -119,6 +126,7 @@ void setInternal_Tx() {
 }
 
 ISR(USI_OVF_vect) {
+	PORTB |= (1<<PB3);
 	if (UART_Status.Tx_Active ) {
 		unsigned char tmptail = (Tx_Tail + 1) & TX_BUFFER_MASK;
 		USIDR = 0x80|(Tx_Buffer[tmptail] >> 2);
@@ -141,5 +149,7 @@ ISR(USI_OVF_vect) {
 	} else if (UART_Status.Tx_Idle) {		
 		USICR = 0x00; // Turn off USI
 		USISR = 1<<USIOIF; // Clear interrupt flag			
+	} else if (UART_Status.Rx_Receive) {
+
 	}
 }

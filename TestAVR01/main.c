@@ -8,13 +8,13 @@
 int main (void)
 {
 	flushBuffers();
-	initialiseTx();
-	//initialiseRx();
+	//initialiseTx();
+	initialiseRx();
 	
  	while (1) {
- 		 transmitBytes('h');
+ 		// transmitBytes('h');
 
- 		 _delay_ms(500);
+ 		 //_delay_ms(500);
 
  		// transmitBytes('e');
 
