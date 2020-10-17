@@ -44,14 +44,18 @@ void flushBuffers() {
 }
 
 // Initialises Rx PB1 for receiving of data 
-void initialiseRx() {
-	cli();
+void initialiseRx() {	
 	DDRB |= (0<<PB0); // PB1 set to input
 	PORTB |= (1<<PB0); // INPUT SET HIGH
 
 	GIMSK = (1<<PCIE); //PIN CHANGE GLOBAL INTERRUPT ENABLE (PCINT0_vect)
 	PCMSK = (1<<PCINT0); // Sets PinB0 to have interrupt vector enabled
 
+	sei();
+}
+
+void receiveBytes() {
+	cli();
 	TCCR0A = (1<<WGM01)|(0<<WGM00);
 	TCCR0B = (0<<WGM02)|(1<<CS00);
 
@@ -73,9 +77,10 @@ void initialiseRx() {
 ISR(PCINT0_vect) {
 	unsigned char pinState = PINB;
 	if (!(pinState & (0<<PB0))) { // And and if result is > 0 then true
+		receiveBytes(); // set USI for receive mode
 		//PORTB |= (1<<PB3); // LED test for interrupt signal
 	}
-	
+	PORTB |= (1<<PB3);
 
 	GIMSK &= ~(1<<PCIE); //PIN CHANGE GLOBAL INTERRUPT DISABLED (So PCINT0_vect doesnt continuously trigger)
 	PCMSK &= ~(1<<PCINT0); // Sets PinB0 to have interrupt vector disabled like above ^
@@ -117,6 +122,9 @@ void setInternal_Tx() {
 
 	TCNT0 = 0;	// Timer counter set to 0
 
+	TIMSK = (1<<TOIE0); // enable timer interrupt
+	TIFR = (1<<TOV0);	// reset timer int flag
+
 	OCR0A = CYCLES_PER_BIT; // Used as CTC compare against TCNT0 - triggers USI Overflow
 
 	USICR = (1<<USIOIE) |								// Counter overflow interrupt flag
@@ -155,7 +163,12 @@ ISR(USI_OVF_vect) {
 		USICR = 0x00; // Turn off USI
 		USISR = 1<<USIOIF; // Clear interrupt flag			
 	} else if (UART_Status.Rx_Receive) {
-		PORTB ^= (1<<PB3);
-		USISR = 1<<USIOIF|8; // Clear interrupt flag	
+		if (Bit_Reverse(USIDR) == 'h')
+			PORTB |= (1<<PB3);
+		USICR = 0x00;
+		USISR = 1<<USIOIF|8; // Clear interrupt flag
+		UART_Status.Rx_Receive = FALSE;
+		//initialiseTx();
+		//transmitBytes(Bit_Reverse('H'));
 	}
 }
