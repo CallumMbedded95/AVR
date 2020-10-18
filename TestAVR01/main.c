@@ -8,17 +8,18 @@
 int main (void)
 {
 	flushBuffers();
-	initialiseTx();
-	//initialiseRx();
+	//initialiseTx();
+	initialiseRx();
 	
  	while (1) {
- 		 transmitBytes('h');
+ 		// if (returnTestB()) {
+ 		// 	initialiseTx();
+ 		// 	transmitBytes('e');
+			// _delay_ms(500);
+ 		// }
+ 		 //transmitBytes('e');
 
- 		 _delay_ms(500);
-
- 		// transmitBytes('e');
-
- 		// _delay_ms(500);
+ 		 //_delay_ms(500);
 
  		// transmitBytes('c');
 
