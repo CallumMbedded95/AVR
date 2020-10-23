@@ -12,11 +12,12 @@ int main (void)
 	initialiseRx();
 	
  	while (1) {
- 		// if (returnTestB()) {
- 		// 	initialiseTx();
- 		// 	transmitBytes('e');
-			// _delay_ms(500);
- 		// }
+ 		if (returnTestB_()) {
+ 			initialiseTx();
+ 			transmitBytes(Bit_Reverse(returnTestB_()));
+ 			//transmitBytes('j');
+			_delay_ms(500);
+ 		}
  		 //transmitBytes('e');
 
  		 //_delay_ms(500);

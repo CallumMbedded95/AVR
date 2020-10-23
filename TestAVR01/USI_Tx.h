@@ -12,3 +12,4 @@ void initialiseRx();
 void transmitBytes(unsigned char byte);
 void setInternal_Tx();
 void flushBuffers();
+unsigned char returnTestB_();
