@@ -4,28 +4,43 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <util/delay.h>
-#include "USI_Tx.h" 
+#include "UART.h" 
 
 #include <stdint-gcc.h>
 
-// UART Parameters
+#define CYCLES_PER_BIT     	( F_CPU / BAUD ) // defined in makefile
 #define USI_USISR_CTR_LEN 		16
+
+// UART Rx Parameters
+#define HALF_CYCLES_PER_BIT	(CYCLES_PER_BIT * 1/2)	
+#define CLOCK_CYCLE_DELAY		20
+
+// UART Tx Parameters
 #define USI_FIRST_FRAME_LEN		7
 #define USI_TOTAL_FRAME_LEN		10
-#define CYCLES_PER_BIT     	( F_CPU / BAUD ) // defined in makefile
+
 #define TRUE					1
 #define FALSE 					0
-
 
 volatile static unsigned char Tx_Buffer[TX_BUFFER_LEN]; // Buffer for Tx data
 volatile static unsigned char Tx_Head;	// Circular buffer head
 volatile static unsigned char Tx_Tail;	// Circular buffer tail
 
+volatile static unsigned char Rx_Buffer[RX_BUFFER_LEN];
+volatile static unsigned char Rx_Head;	// Circular buffer head
+volatile static unsigned char Rx_Tail;	// Circular buffer tail
+
+unsigned char ReturnReceiveBufferTail() {
+	unsigned char tmpTail = (Rx_Tail + 1) & RX_BUFFER_MASK;
+
+	return Rx_Buffer[tmpTail];;
+}
 
 struct UART_Status_Struct {
 	unsigned char Tx_Active:1;
 	unsigned char Tx_Transferring:1;
 	unsigned char Tx_Idle:1;
+	unsigned char Rx_Receive:1;
 } volatile static UART_Status;
 
 // Reverses the order of bits in a byte.
@@ -40,33 +55,58 @@ unsigned char Bit_Reverse( unsigned char x ) {
 void flushBuffers() {
 	Tx_Head = 0x00;
 	Tx_Tail = 0x00;
+	Rx_Head = 0x00;
+	Rx_Tail = 0x00;
 }
 
 // Initialises Rx PB1 for receiving of data 
-void initialiseRx() {
-	cli();
-	PORTB = (0<<PB0); // make sure PB1 is input
-	DDRB |= (0<<PB0);
+void initialiseRx() {	
+	DDRB |= (0<<PB0)||(0<<PB1); // PB1 set to input and PB3 to make sure no data shifting occurs
+	PORTB |= (1<<PB0); // INPUT SET HIGH 
 
-	TCNT0 = 0; //set timer cntr to 0
+	GIFR = 1<<PCIF; // pin change interrupt flag
+	GIMSK = (1<<PCIE); //PIN CHANGE GLOBAL INTERRUPT ENABLE (PCINT0_vect)
+	PCMSK = (1<<PCINT0); // Sets PinB0 to have interrupt vector enabled
+
+	sei();
+}
+
+void receiveBytes() {
+	cli();
 	TCCR0A = (1<<WGM01)|(0<<WGM00);
 	TCCR0B = (0<<WGM02)|(1<<CS00);
 
+	//TCNT0 = HALF_CYCLES_PER_BIT ; //set timer cntr to 0
+	TCNT0 = HALF_CYCLES_PER_BIT + CLOCK_CYCLE_DELAY;
+
 	OCR0A = CYCLES_PER_BIT;
 
-	USISR = (1<<USISIF)|0xFF; // clear interrupt flag
-	USICR = (1<<USISIE)|(1<<USIOIE)| // start and counter cond interrupt enable
+	USISR = (1<<USIOIF)|0xFF; // start and clear interrupt flag AND counter to 16
+	USICR = (1<<USIOIE)| // dont use this part? (1<<USISIE)|// start and counter cond interrupt enable
 			(0<<USIWM1)|(1<<USIWM0)| // wire mode 3 wire
 			(0<<USICS1)|(1<<USICS0)|(0<<USICLK); // counter/timer compare match CTC mode
 
-	DDRB |= (1<<PB3); // test led to see if receive triggers
+	//DDRB |= (1<<PB3); // test led to see if receive triggers
+
+	
 
 	sei();
 }
 
 // Interrupt vector for DI USI pin
-ISR(USI_START_vect) {
-	PORTB |= (1<<PB3);
+ISR(PCINT0_vect) {
+	unsigned char pinState = PINB;
+	if (!(pinState & (0<<PB0))) { // And and if result is > 0 then true
+		GIFR = 1<<PCIF; // pin change interrupt flag
+		GIMSK &= ~(1<<PCIE); //PIN CHANGE GLOBAL INTERRUPT DISABLED (So PCINT0_vect doesnt continuously trigger)
+		PCMSK &= ~(1<<PCINT0); // Sets PinB0 to have interrupt vector disabled like above ^
+			
+		receiveBytes(); // set USI for receive mode
+
+		UART_Status.Rx_Receive = TRUE;
+	}
+
+	
 }
 
 
@@ -74,8 +114,8 @@ ISR(USI_START_vect) {
 void initialiseTx() {
 	//sei(); // set global interrupts - not sure if required
 	USICR = 0; //usi disabled - likely not necessary
-	PORTB = (1<<PB1); // DO/Tx Pin
-	DDRB |= (0<<PB1); // USI Input pin
+	PORTB |= (1<<PB1); // DO/Tx Pin
+	DDRB |= (1<<PB1); // USI Input pin
 
 	UART_Status.Tx_Idle = TRUE;
 }
@@ -103,12 +143,17 @@ void setInternal_Tx() {
 
 	TCNT0 = 0;	// Timer counter set to 0
 
+	//TIFR = (1<<OCF0A); // timer clear int
+	//TIMSK |= (1<<OCIE0A); // timer int enabled
+
 	OCR0A = CYCLES_PER_BIT; // Used as CTC compare against TCNT0 - triggers USI Overflow
 
+	USICR = (1<<USIOIE) |								// Counter overflow interrupt flag
+			(0<<USIWM1) | (1<<USIWM0) |					// Three wire mode set
+			(0<<USICS1) | (1<<USICS0) | (0<<USICLK);	// Set to timer/counter0 compare match/Clock source
 	USIDR = 0xFF; //start bit is low- keep high
 
-	DDRB  |= (1<<PB1);
-	DDRB  |= (1<<3);
+	DDRB |= (1<<PB1);
 
 	USISR = 1<<USIOIF | 0xFF;     //Clear USI int flag from status reg AND set ctr to 8 - so we can count to 8
 
@@ -138,5 +183,13 @@ ISR(USI_OVF_vect) {
 	} else if (UART_Status.Tx_Idle) {		
 		USICR = 0x00; // Turn off USI
 		USISR = 1<<USIOIF; // Clear interrupt flag			
+	} else if (UART_Status.Rx_Receive) {
+		unsigned char tmpHead = (Rx_Head + 1) & RX_BUFFER_MASK;
+		Rx_Buffer[tmpHead] = USIDR;
+		USICR = 0x00;
+		USISR = 1<<USIOIF|8; // Clear interrupt flag
+		UART_Status.Rx_Receive = FALSE;
+		GIMSK = (1<<PCIE); //PIN CHANGE GLOBAL INTERRUPT ENABLE (PCINT0_vect)
+		PCMSK = (1<<PCINT0); // Sets PinB0 to have interrupt vector enabled
 	}
 }
