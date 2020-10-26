@@ -13,6 +13,7 @@
 
 // UART Rx Parameters
 #define HALF_CYCLES_PER_BIT	(CYCLES_PER_BIT * 1/2)	
+#define CLOCK_CYCLE_DELAY		20
 
 // UART Tx Parameters
 #define USI_FIRST_FRAME_LEN		7
@@ -29,11 +30,10 @@ volatile static unsigned char Rx_Buffer[RX_BUFFER_LEN];
 volatile static unsigned char Rx_Head;	// Circular buffer head
 volatile static unsigned char Rx_Tail;	// Circular buffer tail
 
-// ***DELETE
-volatile static unsigned char testBool = 0;
+unsigned char ReturnReceiveBufferTail() {
+	unsigned char tmpTail = (Rx_Tail + 1) & RX_BUFFER_MASK;
 
-unsigned char returnTestB_() {
-	return testBool;
+	return Rx_Buffer[tmpTail];;
 }
 
 struct UART_Status_Struct {
@@ -77,10 +77,9 @@ void receiveBytes() {
 	TCCR0B = (0<<WGM02)|(1<<CS00);
 
 	//TCNT0 = HALF_CYCLES_PER_BIT ; //set timer cntr to 0
-	TCNT0 = 46;
+	TCNT0 = HALF_CYCLES_PER_BIT + CLOCK_CYCLE_DELAY;
 
 	OCR0A = CYCLES_PER_BIT;
-	//OCR0A = HALF_CYCLES_PER_BIT; // timer seed + cpu cycles from interrupt
 
 	USISR = (1<<USIOIF)|0xFF; // start and clear interrupt flag AND counter to 16
 	USICR = (1<<USIOIE)| // dont use this part? (1<<USISIE)|// start and counter cond interrupt enable
@@ -185,13 +184,12 @@ ISR(USI_OVF_vect) {
 		USICR = 0x00; // Turn off USI
 		USISR = 1<<USIOIF; // Clear interrupt flag			
 	} else if (UART_Status.Rx_Receive) {
-		//unsigned char tmpTail = ();
+		unsigned char tmpHead = (Rx_Head + 1) & RX_BUFFER_MASK;
+		Rx_Buffer[tmpHead] = USIDR;
 		USICR = 0x00;
 		USISR = 1<<USIOIF|8; // Clear interrupt flag
 		UART_Status.Rx_Receive = FALSE;
 		GIMSK = (1<<PCIE); //PIN CHANGE GLOBAL INTERRUPT ENABLE (PCINT0_vect)
 		PCMSK = (1<<PCINT0); // Sets PinB0 to have interrupt vector enabled
-		testBool = USIDR;
-		
 	}
 }
