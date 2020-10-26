@@ -3,7 +3,7 @@
 
 #include <avr/io.h>
 #include <util/delay.h>
-#include "USI_Tx.h" 
+#include "UART.h" 
  
 int main (void)
 {

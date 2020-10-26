@@ -4,7 +4,7 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <util/delay.h>
-#include "USI_Tx.h" 
+#include "UART.h" 
 
 #include <stdint-gcc.h>
 
@@ -185,7 +185,7 @@ ISR(USI_OVF_vect) {
 		USICR = 0x00; // Turn off USI
 		USISR = 1<<USIOIF; // Clear interrupt flag			
 	} else if (UART_Status.Rx_Receive) {
-		unsigned char tmpTail = ();
+		//unsigned char tmpTail = ();
 		USICR = 0x00;
 		USISR = 1<<USIOIF|8; // Clear interrupt flag
 		UART_Status.Rx_Receive = FALSE;
