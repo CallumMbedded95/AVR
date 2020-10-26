@@ -3,6 +3,8 @@
 
 #define TX_BUFFER_LEN		4
 #define TX_BUFFER_MASK 		(TX_BUFFER_LEN-1)
+#define RX_BUFFER_LEN		4
+#define RX_BUFFER_MASK 		(RX_BUFFER_LEN-1)
 #define STOP_BITS 			1
 #define BAUD				19200
 
