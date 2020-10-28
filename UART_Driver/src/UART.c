@@ -12,8 +12,8 @@
 #define USI_USISR_CTR_LEN 		16
 
 // UART Rx Parameters
-#define HALF_CYCLES_PER_BIT	(CYCLES_PER_BIT * 1/2)	
-#define CLOCK_CYCLE_DELAY		20
+#define HALF_CYCLES_PER_BIT	(CYCLES_PER_BIT * 1/2)
+#define CLOCK_CYCLE_DELAY		21
 
 // UART Tx Parameters
 #define USI_FIRST_FRAME_LEN		7
@@ -32,8 +32,14 @@ volatile static unsigned char Rx_Tail;	// Circular buffer tail
 
 unsigned char ReturnReceiveBufferTail() {
 	unsigned char tmpTail = (Rx_Tail + 1) & RX_BUFFER_MASK;
+	Rx_Tail = tmpTail;
+	return Rx_Buffer[tmpTail];
+}
 
-	return Rx_Buffer[tmpTail];;
+unsigned char DataInReceiveBuffer() {
+	if (Rx_Tail != Rx_Head)
+		return 0x01; // true
+	return 0x00;
 }
 
 struct UART_Status_Struct {
@@ -50,6 +56,10 @@ unsigned char Bit_Reverse( unsigned char x ) {
     x = ((x >> 2) & 0x33) | ((x << 2) & 0xcc);
     x = ((x >> 4) & 0x0f) | ((x << 4) & 0xf0);
     return x;    
+}
+
+unsigned char isIdle() {
+	return UART_Status.Tx_Idle;
 }
 
 void flushBuffers() {
@@ -69,26 +79,25 @@ void initialiseRx() {
 	PCMSK = (1<<PCINT0); // Sets PinB0 to have interrupt vector enabled
 
 	sei();
+	PORTB &= ~(1<<PB3);
+		
 }
 
 void receiveBytes() {
 	cli();
 	TCCR0A = (1<<WGM01)|(0<<WGM00);
 	TCCR0B = (0<<WGM02)|(1<<CS00);
-
-	//TCNT0 = HALF_CYCLES_PER_BIT ; //set timer cntr to 0
-	TCNT0 = HALF_CYCLES_PER_BIT + CLOCK_CYCLE_DELAY;
+	
+	TCNT0 = HALF_CYCLES_PER_BIT - CLOCK_CYCLE_DELAY; //set timer cntr to 0
 
 	OCR0A = CYCLES_PER_BIT;
 
-	USISR = (1<<USIOIF)|0xFF; // start and clear interrupt flag AND counter to 16
+	USISR = (1<<USIOIF)|0x08; // start and clear interrupt flag AND counter to 16
 	USICR = (1<<USIOIE)| // dont use this part? (1<<USISIE)|// start and counter cond interrupt enable
 			(0<<USIWM1)|(1<<USIWM0)| // wire mode 3 wire
 			(0<<USICS1)|(1<<USICS0)|(0<<USICLK); // counter/timer compare match CTC mode
 
-	//DDRB |= (1<<PB3); // test led to see if receive triggers
-
-	
+	UART_Status.Rx_Receive = TRUE;
 
 	sei();
 }
@@ -101,12 +110,8 @@ ISR(PCINT0_vect) {
 		GIMSK &= ~(1<<PCIE); //PIN CHANGE GLOBAL INTERRUPT DISABLED (So PCINT0_vect doesnt continuously trigger)
 		PCMSK &= ~(1<<PCINT0); // Sets PinB0 to have interrupt vector disabled like above ^
 			
-		receiveBytes(); // set USI for receive mode
-
-		UART_Status.Rx_Receive = TRUE;
-	}
-
-	
+		receiveBytes(); // set USI for receive mode		
+	}	
 }
 
 
@@ -118,6 +123,8 @@ void initialiseTx() {
 	DDRB |= (1<<PB1); // USI Input pin
 
 	UART_Status.Tx_Idle = TRUE;
+
+	PORTB |= 1<<PB3;
 }
 
 // Sets up the buffer with data to transmit
@@ -142,9 +149,6 @@ void setInternal_Tx() {
 	TCCR0B = (0<<WGM02)|(1<<CS00);	// Setting CTC mode part 2 AND no prescaling (for now)
 
 	TCNT0 = 0;	// Timer counter set to 0
-
-	//TIFR = (1<<OCF0A); // timer clear int
-	//TIMSK |= (1<<OCIE0A); // timer int enabled
 
 	OCR0A = CYCLES_PER_BIT; // Used as CTC compare against TCNT0 - triggers USI Overflow
 
@@ -186,8 +190,9 @@ ISR(USI_OVF_vect) {
 	} else if (UART_Status.Rx_Receive) {
 		unsigned char tmpHead = (Rx_Head + 1) & RX_BUFFER_MASK;
 		Rx_Buffer[tmpHead] = USIDR;
+		Rx_Head = tmpHead;
 		USICR = 0x00;
-		USISR = 1<<USIOIF|8; // Clear interrupt flag
+		USISR = 1<<USIOIF|0xFF; // Clear interrupt flag
 		UART_Status.Rx_Receive = FALSE;
 		GIMSK = (1<<PCIE); //PIN CHANGE GLOBAL INTERRUPT ENABLE (PCINT0_vect)
 		PCMSK = (1<<PCINT0); // Sets PinB0 to have interrupt vector enabled
