@@ -2,27 +2,29 @@
 // Author: Callum McNeish
 
 #include <avr/io.h>
+#include <avr/sleep.h>
 #include <util/delay.h>
 #include "UART.h" 
  
 int main (void)
 {
-	flushBuffers();
-	//initialiseTx(); // Used for pure Tx solution
+	flushBuffers(); // reset buffers and initialise receiver
 	initialiseRx();
-	DDRB |= 1<<PB3;
+	
  	while (1) {
- 		// if (ReturnReceiveBufferTail()) { // yes this is bad, we fix later *****
- 		// 	initialiseTx();
- 		// 	transmitBytes(Bit_Reverse(ReturnReceiveBufferTail())); // just prints out received
-			// _delay_ms(500);
- 		// }
- 		if (DataInReceiveBuffer()) {
- 			initialiseTx();
+ 		// transmitBytes('a');
+ 		// _delay_ms(50);
+ 		// transmitBytes('b');
+ 		// _delay_ms(50);
+ 		// transmitBytes('c');
+ 		// _delay_ms(50);
+ 		// transmitBytes('d');
+ 		// _delay_ms(1500);
+ 		while (DataInReceiveBuffer()) {
  			transmitBytes(Bit_Reverse(ReturnReceiveBufferTail())); // just prints out received
-			while (!isIdle());
-			initialiseRx();
+ 			_delay_ms(20);
  		}
+ 		//_SLEEP(); // wait for pin change interrupt
   	}	
  
   	return 0;
