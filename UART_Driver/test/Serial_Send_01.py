@@ -1,7 +1,7 @@
 import serial
 import time
 
-ser = serial.Serial('/dev/ttyUSB1', 19200, timeout=2)
+ser = serial.Serial('/dev/ttyUSB1', 9600, timeout=2)
 ser.flushInput()
 ser.flushOutput()
 while True:
