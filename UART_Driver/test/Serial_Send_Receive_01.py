@@ -1,11 +1,13 @@
 import serial
 import time
 
-ser = serial.Serial('/dev/ttyUSB1', 19200, timeout=2)
+#ser = serial.Serial('/dev/ttyUSB1', 19200, timeout=2)
+ser = serial.Serial('/dev/ttyUSB1', 9600, timeout=2)
 ser.flushInput()
 ser.flushOutput()
 while True:
-	ser.write('a')
+	#ser.write('a')
+	ser.write('d')
 	print('Writing')
 	time.sleep(1)
 	data_raw = ser.read()
